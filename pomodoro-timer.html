@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍅 番茄钟 - Pomodoro Timer</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card-bg: #16213e;
+    --text: #eee;
+    --text-secondary: #a0a0b8;
+    --accent: #e94560;
+    --accent-glow: rgba(233, 69, 96, 0.4);
+    --break-color: #4ecca3;
+    --break-glow: rgba(78, 204, 163, 0.4);
+    --ring-bg: #2a2a4a;
+    --btn-bg: #1f3050;
+    --btn-hover: #2a4068;
+    --shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* 背景动画粒子 */
+  .bg-particles {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    overflow: hidden;
+  }
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    animation: floatUp 6s infinite;
+  }
+  @keyframes floatUp {
+    0% { transform: translateY(100vh) scale(0); opacity: 0; }
+    10% { opacity: 0.15; }
+    90% { opacity: 0.15; }
+    100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+  }
+
+  /* 主容器 */
+  .container {
+    position: relative; z-index: 1;
+    background: var(--card-bg);
+    border-radius: 32px;
+    padding: 48px 40px 36px;
+    box-shadow: var(--shadow), 0 0 60px rgba(233,69,96,0.06);
+    text-align: center;
+    width: 420px;
+    transition: box-shadow 0.5s;
+  }
+  .container.break-mode {
+    box-shadow: var(--shadow), 0 0 60px rgba(78,204,163,0.08);
+  }
+
+  /* 模式标签 */
+  .mode-tag {
+    display: inline-block;
+    padding: 6px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    background: rgba(233,69,96,0.15);
+    color: var(--accent);
+    transition: all 0.4s;
+  }
+  .break-mode .mode-tag {
+    background: rgba(78,204,163,0.15);
+    color: var(--break-color);
+  }
+
+  /* 环形进度 */
+  .ring-container {
+    position: relative;
+    width: 260px; height: 260px;
+    margin: 0 auto 28px;
+  }
+  .ring-container svg {
+    transform: rotate(-90deg);
+    width: 260px; height: 260px;
+  }
+  .ring-bg {
+    fill: none;
+    stroke: var(--ring-bg);
+    stroke-width: 10;
+  }
+  .ring-progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s linear, stroke 0.4s;
+    filter: drop-shadow(0 0 6px var(--accent-glow));
+  }
+  .break-mode .ring-progress {
+    stroke: var(--break-color);
+    filter: drop-shadow(0 0 6px var(--break-glow));
+  }
+
+  /* 时间显示 */
+  .time-display {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .time {
+    font-size: 60px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    transition: color 0.4s;
+  }
+  .time-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: -4px;
+  }
+
+  /* 按钮 */
+  .controls {
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .btn {
+    border: none;
+    border-radius: 50%;
+    width: 56px; height: 56px;
+    font-size: 22px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    width: 68px; height: 68px;
+    font-size: 26px;
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+  .btn-primary:hover { transform: scale(1.08); box-shadow: 0 6px 28px var(--accent-glow); }
+  .btn-primary:active { transform: scale(0.95); }
+  .break-mode .btn-primary {
+    background: var(--break-color);
+    box-shadow: 0 4px 20px var(--break-glow);
+  }
+  .break-mode .btn-primary:hover { box-shadow: 0 6px 28px var(--break-glow); }
+
+  .btn-secondary {
+    background: var(--btn-bg);
+    color: var(--text-secondary);
+    width: 48px; height: 48px;
+    font-size: 18px;
+  }
+  .btn-secondary:hover {
+    background: var(--btn-hover);
+    color: var(--text);
+  }
+
+  /* 统计 */
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 20px;
+  }
+  .stat { text-align: center; }
+  .stat-value {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* 时长选择 */
+  .duration-pills {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+  .pill {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .pill:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+  .pill.active {
+    background: rgba(233,69,96,0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .break-mode .pill.active {
+    background: rgba(78,204,163,0.15);
+    border-color: var(--break-color);
+    color: var(--break-color);
+  }
+
+  /* 通知权限 */
+  .notify-hint {
+    margin-top: 16px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+  }
+  .notify-hint:hover { opacity: 1; }
+
+  /* 完成动画 */
+  @keyframes pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.05); }
+  }
+  .time-display.flash .time { animation: pulse 0.6s ease-in-out 3; }
+</style>
+</head>
+<body>
+
+<div class="bg-particles" id="particles"></div>
+
+<div class="container" id="container">
+  <!-- 模式标签 -->
+  <div class="mode-tag" id="modeTag">🍅 专注工作</div>
+
+  <!-- 环形进度条 -->
+  <div class="ring-container">
+    <svg viewBox="0 0 260 260">
+      <circle class="ring-bg" cx="130" cy="130" r="120"/>
+      <circle class="ring-progress" id="ringProgress" cx="130" cy="130" r="120"
+              stroke-dasharray="753.98" stroke-dashoffset="0"/>
+    </svg>
+    <div class="time-display" id="timeDisplay">
+      <div class="time" id="timeText">25:00</div>
+      <div class="time-label" id="timeLabel">分钟</div>
+    </div>
+  </div>
+
+  <!-- 控制按钮 -->
+  <div class="controls">
+    <button class="btn btn-secondary" id="btnReset" title="重置">↺</button>
+    <button class="btn btn-primary" id="btnStart" title="开始">▶</button>
+    <button class="btn btn-secondary" id="btnSkip" title="跳过">⏭</button>
+  </div>
+
+  <!-- 统计 -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value" id="sessionCount">0</div>
+      <div class="stat-label">完成番茄</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="totalFocus">0min</div>
+      <div class="stat-label">总专注</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="todayCount">0</div>
+      <div class="stat-label">今日完成</div>
+    </div>
+  </div>
+
+  <!-- 时长选择 -->
+  <div class="duration-pills" id="durationPills">
+    <button class="pill" data-work="15" data-break="5">15 / 5</button>
+    <button class="pill active" data-work="25" data-break="5">25 / 5</button>
+    <button class="pill" data-work="45" data-break="10">45 / 10</button>
+    <button class="pill" data-work="50" data-break="10">50 / 10</button>
+  </div>
+
+  <div class="notify-hint" id="notifyHint" title="点击开启桌面通知">🔔 开启桌面通知提醒</div>
+</div>
+
+<script>
+  // ==================== 状态管理 ====================
+  const CIRCUMFERENCE = 2 * Math.PI * 120; // ≈ 753.98
+
+  const state = {
+    isRunning: false,
+    isBreak: false,
+    isPaused: false,
+    workDuration: 25 * 60,   // 秒
+    breakDuration: 5 * 60,   // 秒
+    timeLeft: 25 * 60,       // 秒
+    totalSeconds: 25 * 60,   // 本轮总秒数
+    sessionCount: parseInt(localStorage.getItem('pomo_sessions') || '0'),
+    totalFocusMin: parseInt(localStorage.getItem('pomo_total_min') || '0'),
+    todayCount: 0,
+    todayDate: new Date().toDateString(),
+    intervalId: null,
+    notificationEnabled: false,
+  };
+
+  // 从 localStorage 恢复今日统计
+  const savedToday = localStorage.getItem('pomo_today');
+  if (savedToday) {
+    try {
+      const t = JSON.parse(savedToday);
+      if (t.date === state.todayDate) {
+        state.todayCount = t.count;
+      }
+    } catch(e) {}
+  }
+  function saveToday() {
+    localStorage.setItem('pomo_today', JSON.stringify({
+      date: state.todayDate,
+      count: state.todayCount,
+    }));
+  }
+
+  // ==================== DOM 元素 ====================
+  const container = document.getElementById('container');
+  const modeTag = document.getElementById('modeTag');
+  const ringProgress = document.getElementById('ringProgress');
+  const timeText = document.getElementById('timeText');
+  const timeLabel = document.getElementById('timeLabel');
+  const timeDisplay = document.getElementById('timeDisplay');
+  const btnStart = document.getElementById('btnStart');
+  const btnReset = document.getElementById('btnReset');
+  const btnSkip = document.getElementById('btnSkip');
+  const sessionCountEl = document.getElementById('sessionCount');
+  const totalFocusEl = document.getElementById('totalFocus');
+  const todayCountEl = document.getElementById('todayCount');
+  const notifyHint = document.getElementById('notifyHint');
+  const durationPills = document.getElementById('durationPills');
+
+  // ==================== 音频 (Web Audio API) ====================
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+
+  function playBeep(freq, duration, type = 'sine', vol = 0.3) {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch(e) { /* 静默处理 */ }
+  }
+
+  function playFinishSound() {
+    // 欢快的完成音效
+    playBeep(523, 0.15, 'sine', 0.25); // C5
+    setTimeout(() => playBeep(659, 0.15, 'sine', 0.25), 150); // E5
+    setTimeout(() => playBeep(784, 0.15, 'sine', 0.25), 300); // G5
+    setTimeout(() => playBeep(1047, 0.4, 'sine', 0.3), 450); // C6
+  }
+
+  function playClickSound() {
+    playBeep(880, 0.05, 'sine', 0.1);
+  }
+
+  function playTickSound() {
+    playBeep(1000, 0.03, 'sine', 0.05);
+  }
+
+  // ==================== 通知 ====================
+  function checkNotificationPermission() {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        state.notificationEnabled = true;
+        notifyHint.textContent = '✅ 桌面通知已开启';
+        notifyHint.style.cursor = 'default';
+      } else if (Notification.permission === 'denied') {
+        notifyHint.textContent = '🚫 通知已禁用';
+        notifyHint.style.cursor = 'default';
+      } else {
+        notifyHint.textContent = '🔔 点击开启桌面通知提醒';
+      }
+    } else {
+      notifyHint.style.display = 'none';
+    }
+  }
+
+  async function requestNotification() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') state.notificationEnabled = true;
+      checkNotificationPermission();
+    }
+  }
+
+  function sendNotification(title, body) {
+    if (state.notificationEnabled && 'Notification' in window) {
+      new Notification(title, {
+        body,
+        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="80" font-size="80">🍅</text></svg>',
+        silent: false,
+      });
+    }
+  }
+
+  // ==================== 渲染 ====================
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  function updateDisplay() {
+    timeText.textContent = formatTime(state.timeLeft);
+
+    // 更新环形进度
+    const progress = state.timeLeft / state.totalSeconds;
+    ringProgress.style.strokeDashoffset = CIRCUMFERENCE * (1 - progress);
+
+    // 更新统计
+    sessionCountEl.textContent = state.sessionCount;
+    totalFocusEl.textContent = state.totalFocusMin + 'min';
+    todayCountEl.textContent = state.todayCount;
+
+    // 更新模式
+    if (state.isBreak) {
+      container.classList.add('break-mode');
+      modeTag.textContent = '☕ 休息时间';
+      timeLabel.textContent = '休息';
+    } else {
+      container.classList.remove('break-mode');
+      modeTag.textContent = '🍅 专注工作';
+      timeLabel.textContent = '分钟';
+    }
+
+    // 更新按钮图标
+    if (state.isRunning && !state.isPaused) {
+      btnStart.textContent = '⏸';
+      btnStart.title = '暂停';
+    } else {
+      btnStart.textContent = '▶';
+      btnStart.title = '开始';
+    }
+  }
+
+  // ==================== 计时器 ====================
+  function tick() {
+    if (state.isPaused) return;
+
+    if (state.timeLeft > 0) {
+      state.timeLeft--;
+      updateDisplay();
+
+      // 最后 5 秒滴答声
+      if (state.timeLeft <= 5 && state.timeLeft > 0) {
+        playTickSound();
+      }
+    }
+
+    if (state.timeLeft <= 0) {
+      finishSession();
+    }
+  }
+
+  function startTimer() {
+    if (state.isRunning && !state.isPaused) {
+      // 暂停
+      state.isPaused = true;
+      clearInterval(state.intervalId);
+      state.intervalId = null;
+      updateDisplay();
+      return;
+    }
+
+    if (state.isPaused) {
+      // 继续
+      state.isPaused = false;
+      state.intervalId = setInterval(tick, 1000);
+      updateDisplay();
+      return;
+    }
+
+    // 全新开始
+    state.isRunning = true;
+    state.isPaused = false;
+    state.timeLeft = state.isBreak ? state.breakDuration : state.workDuration;
+    state.totalSeconds = state.timeLeft;
+    state.intervalId = setInterval(tick, 1000);
+    playClickSound();
+    updateDisplay();
+  }
+
+  function finishSession() {
+    clearInterval(state.intervalId);
+    state.intervalId = null;
+    state.isRunning = false;
+    state.isPaused = false;
+
+    playFinishSound();
+
+    if (!state.isBreak) {
+      // 完成了一个番茄！
+      state.sessionCount++;
+      state.totalFocusMin += Math.floor(state.workDuration / 60);
+      state.todayCount++;
+      localStorage.setItem('pomo_sessions', state.sessionCount);
+      localStorage.setItem('pomo_total_min', state.totalFocusMin);
+      saveToday();
+      sendNotification('🍅 番茄完成!', `专注了 ${Math.floor(state.workDuration / 60)} 分钟，真棒！`);
+    } else {
+      sendNotification('☕ 休息结束', '准备开始下一个番茄吧！');
+    }
+
+    // 切换模式
+    state.isBreak = !state.isBreak;
+    state.timeLeft = state.isBreak ? state.breakDuration : state.workDuration;
+    state.totalSeconds = state.timeLeft;
+
+    // 视觉反馈
+    timeDisplay.classList.add('flash');
+    setTimeout(() => timeDisplay.classList.remove('flash'), 1800);
+
+    updateDisplay();
+
+    // 自动开始下一轮
+    state.isRunning = true;
+    state.intervalId = setInterval(tick, 1000);
+  }
+
+  function resetTimer() {
+    clearInterval(state.intervalId);
+    state.intervalId = null;
+    state.isRunning = false;
+    state.isPaused = false;
+    state.isBreak = false;
+    state.timeLeft = state.workDuration;
+    state.totalSeconds = state.workDuration;
+    playClickSound();
+    updateDisplay();
+  }
+
+  function skipSession() {
+    clearInterval(state.intervalId);
+    state.intervalId = null;
+    state.isRunning = false;
+    state.isPaused = false;
+    playClickSound();
+
+    // 如果是工作模式，不计数
+    state.isBreak = !state.isBreak;
+    state.timeLeft = state.isBreak ? state.breakDuration : state.workDuration;
+    state.totalSeconds = state.timeLeft;
+
+    updateDisplay();
+  }
+
+  // ==================== 时长切换 ====================
+  function setDurations(workMin, breakMin) {
+    state.workDuration = workMin * 60;
+    state.breakDuration = breakMin * 60;
+    state.isBreak = false;
+    state.isRunning = false;
+    state.isPaused = false;
+    clearInterval(state.intervalId);
+    state.intervalId = null;
+    state.timeLeft = state.workDuration;
+    state.totalSeconds = state.workDuration;
+
+    // 高亮激活的 pill
+    document.querySelectorAll('.pill').forEach(p => {
+      p.classList.toggle('active',
+        parseInt(p.dataset.work) === workMin && parseInt(p.dataset.break) === breakMin);
+    });
+
+    playClickSound();
+    updateDisplay();
+  }
+
+  // ==================== 背景粒子 ====================
+  function createParticles() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 15; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      const size = 2 + Math.random() * 4;
+      particle.style.cssText = `
+        width: ${size}px; height: ${size}px;
+        left: ${Math.random() * 100}%;
+        animation-delay: ${Math.random() * 6}s;
+        animation-duration: ${4 + Math.random() * 8}s;
+        opacity: ${0.04 + Math.random() * 0.08};
+      `;
+      container.appendChild(particle);
+    }
+  }
+
+  // ==================== 事件绑定 ====================
+  btnStart.addEventListener('click', startTimer);
+  btnReset.addEventListener('click', resetTimer);
+  btnSkip.addEventListener('click', skipSession);
+  notifyHint.addEventListener('click', requestNotification);
+
+  durationPills.addEventListener('click', (e) => {
+    const pill = e.target.closest('.pill');
+    if (!pill) return;
+    const workMin = parseInt(pill.dataset.work);
+    const breakMin = parseInt(pill.dataset.break);
+    setDurations(workMin, breakMin);
+  });
+
+  // 键盘快捷键
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      startTimer();
+    } else if (e.code === 'KeyR') {
+      resetTimer();
+    } else if (e.code === 'KeyS') {
+      skipSession();
+    }
+  });
+
+  // ==================== 初始化 ====================
+  function init() {
+    createParticles();
+    checkNotificationPermission();
+    updateDisplay();
+  }
+
+  init();
+</script>
+</body>
+</html>
